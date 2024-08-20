@@ -1,4 +1,4 @@
-#version 330 compatibility
+#version 430 compatibility
 
 in vec2 texCoord;
 
@@ -8,6 +8,7 @@ uniform sampler2D DepthSampler;
 uniform float near;
 uniform float far;
 
+layout(rgba8) uniform image2D tempTexture;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -173,7 +174,7 @@ void main() {
     vec2 pixelSize = 1.0 / vec2(resolution) * 8.0;
 
     // Number of samples per axis (supersampling factor)
-    int samples = 2;
+    int samples = 1;
     float sampleFactor = float(samples * samples);
 
     // Determine the starting coordinates for sampling
@@ -189,12 +190,20 @@ void main() {
             // Offset within the pixel block for supersampling
             vec2 offset = vec2(x, y) / float(samples) * pixelSize;
             vec2 sampleCoords = blockCoords + offset;
-
-            vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
-            float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
-            vec3 finalColor = vec3(edgeStrength) * 8000;
-            if (finalColor.r > 0.04){
-                finalColor = vec3(1,1,1);
+            vec3 finalColor;
+            if (false) {
+                float depth = texture(depthtex0, texCoord).r;
+                float d = linearizeDepth(depth, near, far);
+                vec4 colorDepth1 = vec4(d, d, d,1) / 200;
+                vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
+                vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+            } else {
+                vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
+                float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
+                finalColor = vec3(edgeStrength) * 8000;
+                if (finalColor.r > 0.04){
+                    finalColor = vec3(1,1,1);
+                }
             }
 
             float avg = 1.0 - ((finalColor.r + finalColor.r + finalColor.r) / 3.0);
@@ -206,12 +215,19 @@ void main() {
 
             for (int i = 0; i < 9; ++i) {
                 vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
-
-                vec4 edge = differenceOfGaussians(depthtex0, sampleCoords, offsets[i]);
-                float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
-                vec3 finalColor = vec3(edgeStrength) * 8000;
-                if (finalColor.r > 0.04){
-                    finalColor = vec3(1,1,1);
+                vec3 finalColor;
+                if (false) {
+                    float tC = linearizeDepth(texColor.r, near, far);
+                    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
+                    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+                    finalColor = colorDepth.rgb * invertedColor.rgb;
+                } else {
+                    vec4 edge = differenceOfGaussians(depthtex0, sampleCoords, offsets[i]);
+                    float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
+                    finalColor = vec3(edgeStrength) * 8000;
+                    if (finalColor.r > 0.04){
+                        finalColor = vec3(1,1,1);
+                    }
                 }
 
                 float intensity = finalColor.r;
@@ -246,6 +262,7 @@ void main() {
     }
     float averageLuminance = luminanceSum / 64.0;
     int[8] pattern;
+    //0.017
     if (magnitude < 0.017) {
         // Get the pixel pattern for the current luminance
         pattern = getPattern(averageLuminance);
@@ -262,27 +279,18 @@ void main() {
     // Check if the current pixel should be lit up according to the pattern
     bool litUp = (pattern[pixelCoords.y] & (1 << (7 - pixelCoords.x))) != 0;
 
+    float tC = linearizeDepth(texture(depthtex0, texCoord).r, near, far);
+    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
+    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+    vec3 depthGradient = colorDepth.rgb * invertedColor.rgb;
+    vec3 depthGradientInverted = vec3(1.0) - depthGradient.rgb;
+
+
     if (litUp) {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0); // White for lit pixels
-        //fragColor = texture(colortex0, blockCoords) * 2;
+        //fragColor.rgb = vec3(250, 170, 85) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black for unlit pixels
     }
-
-
-    vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
-    float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
-    vec3 finalColor = vec3(edgeStrength) * 8000;
-    if (finalColor.r > 0.04){
-        finalColor = vec3(1,1,1);
-    }
-    // Output final color
-    fragColor = vec4(finalColor, 1.0);
-
-
-    if (magnitude < 0.017) {
-        fragColor.rgb = vec3(0);
-    } else {
-        fragColor.rgb = angleToColor(angle);
-    }
 }
+
