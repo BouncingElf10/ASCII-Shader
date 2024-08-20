@@ -15,9 +15,9 @@ layout(location = 0) out vec4 fragColor;
 int[8] getPattern(float luminance) {
     // Define a set of patterns for different luminance levels
     if (luminance > 0.9) {
-        return int[8](0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF); // FULL
+        return int[8](0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0x00, 0x00, 0x00); // FULL
     } else if (luminance > 0.8) {
-        return int[8](0xFF, 0x90, 0x60, 0xB8, 0x88, 0x70, 0x00, 0x00); //@
+        return int[8](0x70, 0x90, 0x60, 0xB8, 0x88, 0x70, 0x00, 0x00); //@
     } else if (luminance > 0.7) {
         return int[8](0x20, 0x00, 0x38, 0x08, 0x70, 0x00, 0x00, 0x00); //?
     } else if (luminance > 0.6) {
@@ -65,7 +65,7 @@ int[8] getPatternAngle(float angle) {
         // Around 315° ('\')
         return int[8](0x08, 0x10, 0x20, 0x40, 0x80, 0x00, 0x00, 0x00); // \
     } else {
-        return int[8](0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+        return int[8](0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00);
     }
 }
 
@@ -138,13 +138,99 @@ float linearizeDepth(float depth, float near, float far) {
 }
 
 void main() {
-    /*
+
+    // Define Sobel kernels
+    mat3 sobelX = mat3(
+        -1.0, 0.0, 1.0,
+        -2.0, 0.0, 2.0,
+        -1.0, 0.0, 1.0
+    );
+
+    mat3 sobelY = mat3(
+        -1.0, -2.0, -1.0,
+        0.0, 0.0, 0.0,
+        1.0, 2.0, 1.0
+    );
+
+    // Texture coordinates offsets for the 3x3 kernel
+    ivec2 offsets[9];
+    offsets[0] = ivec2(-1,  1);
+    offsets[1] = ivec2( 0,  1);
+    offsets[2] = ivec2( 1,  1);
+    offsets[3] = ivec2(-1,  0);
+    offsets[4] = ivec2( 0,  0);
+    offsets[5] = ivec2( 1,  0);
+    offsets[6] = ivec2(-1, -1);
+    offsets[7] = ivec2( 0, -1);
+    offsets[8] = ivec2( 1, -1);
+
+    // Apply Sobel kernels
+    float gradX = 0.0;
+    float gradY = 0.0;
+
     vec2 resolution = textureSize(colortex0, 0);
     // Calculate the size of one artificial pixel (8x8 block)
     vec2 pixelSize = 1.0 / vec2(resolution) * 8.0;
 
-    // Determine the 8x8 block position in the screen
+    // Number of samples per axis (supersampling factor)
+    int samples = 8;
+    float sampleFactor = float(samples * samples);
+
+    // Determine the starting coordinates for sampling
     vec2 blockCoords = floor(texCoord / pixelSize) * pixelSize;
+
+    vec4 accumulatedColorDepth = vec4(0.0);
+    float accumulatedGradX = 0.0;
+    float accumulatedGradY = 0.0;
+
+    // Supersampling loop
+    for (int x = 0; x < samples; ++x) {
+        for (int y = 0; y < samples; ++y) {
+            // Offset within the pixel block for supersampling
+            vec2 offset = vec2(x, y) / float(samples) * pixelSize;
+            vec2 sampleCoords = blockCoords + offset;
+
+            float depth = texture(depthtex0, texCoord).r;
+            float d = linearizeDepth(depth, near, far);
+            vec4 colorDepth1 = vec4(d, d, d,1) / 200;
+            vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
+            vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+
+            float avg = 1.0 - ((colorDepth.r + colorDepth.r + colorDepth.r) / 3.0);
+            accumulatedColorDepth += vec4(avg, avg, avg, 1.0);
+
+            // Apply Sobel kernels for this sample
+            float gradX = 0.0;
+            float gradY = 0.0;
+
+            for (int i = 0; i < 9; ++i) {
+                vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
+
+                float tC = linearizeDepth(texColor.r, near, far);
+                vec4 colorDepth1 = vec4(tC, tC, tC,1) / 200;
+                vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
+                vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+
+                float intensity = colorDepth.r;
+                gradX += intensity * sobelX[i / 3][i % 3];
+                gradY += intensity * sobelY[i / 3][i % 3];
+            }
+
+            accumulatedGradX += gradX;
+            accumulatedGradY += gradY;
+        }
+    }
+
+    // Average the accumulated values
+    accumulatedColorDepth /= sampleFactor;
+    accumulatedGradX /= sampleFactor;
+    accumulatedGradY /= sampleFactor;
+
+    // Compute gradient magnitude and angle based on averaged gradients
+    float magnitude = length(vec2(accumulatedGradX, accumulatedGradY));
+    float angle = atan(accumulatedGradY, accumulatedGradX);
+
+    //////////////////
 
     // Calculate the average luminance of the 8x8 block
     float luminanceSum = 0.0;
@@ -156,9 +242,15 @@ void main() {
         }
     }
     float averageLuminance = luminanceSum / 64.0;
+    int[8] pattern;
+    if (magnitude < 0.017) {
+        // Get the pixel pattern for the current luminance
+        pattern = getPattern(averageLuminance);
+    } else {
+        // Get the pixel pattern for the current luminance
+        pattern = getPatternAngle(angle);
+    }
 
-    // Get the pixel pattern for the current luminance
-    int[8] pattern = getPattern(averageLuminance);
 
     // Determine the position within the 8x8 block
     vec2 blockPosition = mod(texCoord / pixelSize, vec2(1.0));
@@ -173,100 +265,4 @@ void main() {
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black for unlit pixels
     }
-    *//////////////////////////////////////////////////////////////////////////////
-      // Define Sobel kernels
-      mat3 sobelX = mat3(
-          -1.0, 0.0, 1.0,
-          -2.0, 0.0, 2.0,
-          -1.0, 0.0, 1.0
-      );
-
-      mat3 sobelY = mat3(
-          -1.0, -2.0, -1.0,
-          0.0, 0.0, 0.0,
-          1.0, 2.0, 1.0
-      );
-
-      // Texture coordinates offsets for the 3x3 kernel
-      ivec2 offsets[9];
-      offsets[0] = ivec2(-1,  1);
-      offsets[1] = ivec2( 0,  1);
-      offsets[2] = ivec2( 1,  1);
-      offsets[3] = ivec2(-1,  0);
-      offsets[4] = ivec2( 0,  0);
-      offsets[5] = ivec2( 1,  0);
-      offsets[6] = ivec2(-1, -1);
-      offsets[7] = ivec2( 0, -1);
-      offsets[8] = ivec2( 1, -1);
-
-      // Apply Sobel kernels
-      float gradX = 0.0;
-      float gradY = 0.0;
-
-      vec2 resolution = textureSize(colortex0, 0);
-      // Calculate the size of one artificial pixel (8x8 block)
-      vec2 pixelSize = 1.0 / vec2(resolution) * 8.0;
-
-      // Number of samples per axis (supersampling factor)
-      int samples = 8;
-      float sampleFactor = float(samples * samples);
-
-      // Determine the starting coordinates for sampling
-      vec2 blockCoords = floor(texCoord / pixelSize) * pixelSize;
-
-      vec4 accumulatedColorDepth = vec4(0.0);
-      float accumulatedGradX = 0.0;
-      float accumulatedGradY = 0.0;
-
-      // Supersampling loop
-      for (int x = 0; x < samples; ++x) {
-          for (int y = 0; y < samples; ++y) {
-              // Offset within the pixel block for supersampling
-              vec2 offset = vec2(x, y) / float(samples) * pixelSize;
-              vec2 sampleCoords = blockCoords + offset;
-
-              float depth = texture(depthtex0, texCoord).r;
-              float d = linearizeDepth(depth, near, far);
-              vec4 colorDepth = vec4(d, d, d,1) / 200;
-
-              float avg = 1.0 - ((colorDepth.r + colorDepth.r + colorDepth.r) / 3.0);
-              accumulatedColorDepth += vec4(avg, avg, avg, 1.0);
-
-              // Apply Sobel kernels for this sample
-              float gradX = 0.0;
-              float gradY = 0.0;
-
-              for (int i = 0; i < 9; ++i) {
-                  vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
-                  float tC = linearizeDepth(texColor.r, near, far);
-                  texColor = vec4(tC, tC, tC,1) / 400;
-                  float intensity = texColor.r;
-                  gradX += intensity * sobelX[i / 3][i % 3];
-                  gradY += intensity * sobelY[i / 3][i % 3];
-              }
-
-              accumulatedGradX += gradX;
-              accumulatedGradY += gradY;
-          }
-      }
-
-      // Average the accumulated values
-      accumulatedColorDepth /= sampleFactor;
-      accumulatedGradX /= sampleFactor;
-      accumulatedGradY /= sampleFactor;
-
-      // Compute gradient magnitude and angle based on averaged gradients
-      float magnitude = length(vec2(accumulatedGradX, accumulatedGradY));
-      float angle = atan(accumulatedGradY, accumulatedGradX);
-
-      // If magnitude is very small, no edge is detected
-      if (magnitude < 0.02) {
-          fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black
-      } else {
-          // Map angle to color
-          vec3 color = angleToColor(angle);
-
-          // Output the color based on the gradient magnitude
-          fragColor = vec4(color, 1.0);
-      }
 }
