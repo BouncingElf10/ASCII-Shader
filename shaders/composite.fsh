@@ -70,7 +70,7 @@ int[8] getPatternAngle(float angle) {
 }
 
 // Function to apply a Gaussian blur
-vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma) {
+vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma, ivec2 offset) {
     float size = 2.0 * ceil(2.0 * sigma) + 1.0;
     vec2 texelSize = 1.0 / textureSize(tex, 0);
 
@@ -80,7 +80,7 @@ vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma) {
     for (float x = -size / 2.0; x <= size / 2.0; x++) {
         for (float y = -size / 2.0; y <= size / 2.0; y++) {
             float weight = exp(-(x * x + y * y) / (2.0 * sigma * sigma));
-            color += texture(tex, texCoord + vec2(x, y) * texelSize) * weight;
+            color += textureOffset(tex, texCoord + vec2(x, y) * texelSize, offset) * weight;
             totalWeight += weight;
         }
     }
@@ -89,9 +89,9 @@ vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma) {
 }
 
 // Function to compute the Difference of Gaussians (DoG)
-vec4 differenceOfGaussians(sampler2D tex, vec2 texCoord) {
-    vec4 blurred1 = gaussianBlur(tex, texCoord, 1.0); // σ1 = 1.0
-    vec4 blurred2 = gaussianBlur(tex, texCoord, 2.0); // σ2 = 2.0
+vec4 differenceOfGaussians(sampler2D tex, vec2 texCoord, ivec2 offset) {
+    vec4 blurred1 = gaussianBlur(tex, texCoord, 1.0, offset);
+    vec4 blurred2 = gaussianBlur(tex, texCoord, 2.0, offset);
     return blurred1 - blurred2;
 }
 
@@ -173,7 +173,7 @@ void main() {
     vec2 pixelSize = 1.0 / vec2(resolution) * 8.0;
 
     // Number of samples per axis (supersampling factor)
-    int samples = 8;
+    int samples = 2;
     float sampleFactor = float(samples * samples);
 
     // Determine the starting coordinates for sampling
@@ -190,13 +190,14 @@ void main() {
             vec2 offset = vec2(x, y) / float(samples) * pixelSize;
             vec2 sampleCoords = blockCoords + offset;
 
-            float depth = texture(depthtex0, texCoord).r;
-            float d = linearizeDepth(depth, near, far);
-            vec4 colorDepth1 = vec4(d, d, d,1) / 200;
-            vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
-            vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+            vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
+            float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 finalColor = vec3(edgeStrength) * 8000;
+            if (finalColor.r > 0.04){
+                finalColor = vec3(1,1,1);
+            }
 
-            float avg = 1.0 - ((colorDepth.r + colorDepth.r + colorDepth.r) / 3.0);
+            float avg = 1.0 - ((finalColor.r + finalColor.r + finalColor.r) / 3.0);
             accumulatedColorDepth += vec4(avg, avg, avg, 1.0);
 
             // Apply Sobel kernels for this sample
@@ -206,12 +207,14 @@ void main() {
             for (int i = 0; i < 9; ++i) {
                 vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
 
-                float tC = linearizeDepth(texColor.r, near, far);
-                vec4 colorDepth1 = vec4(tC, tC, tC,1) / 200;
-                vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
-                vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+                vec4 edge = differenceOfGaussians(depthtex0, sampleCoords, offsets[i]);
+                float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
+                vec3 finalColor = vec3(edgeStrength) * 8000;
+                if (finalColor.r > 0.04){
+                    finalColor = vec3(1,1,1);
+                }
 
-                float intensity = colorDepth.r;
+                float intensity = finalColor.r;
                 gradX += intensity * sobelX[i / 3][i % 3];
                 gradY += intensity * sobelY[i / 3][i % 3];
             }
@@ -264,5 +267,22 @@ void main() {
         //fragColor = texture(colortex0, blockCoords) * 2;
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black for unlit pixels
+    }
+
+
+    vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
+    float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
+    vec3 finalColor = vec3(edgeStrength) * 8000;
+    if (finalColor.r > 0.04){
+        finalColor = vec3(1,1,1);
+    }
+    // Output final color
+    fragColor = vec4(finalColor, 1.0);
+
+
+    if (magnitude < 0.017) {
+        fragColor.rgb = vec3(0);
+    } else {
+        fragColor.rgb = angleToColor(angle);
     }
 }
