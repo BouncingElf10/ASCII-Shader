@@ -4,6 +4,9 @@ in vec2 texCoord;
 
 uniform sampler2D colortex0;  // The main color buffer
 uniform sampler2D depthtex0;
+uniform sampler2D DepthSampler;
+uniform float near;
+uniform float far;
 
 
 layout(location = 0) out vec4 fragColor;
@@ -129,11 +132,9 @@ vec3 angleToColor(float angle) {
     return color;
 }
 
-
-// Convert HSL to RGB
-vec3 hslToRgb(vec3 hsl) {
-    vec3 rgb = clamp(abs(mod(hsl.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-    return hsl.z + (hsl.y - hsl.z) * rgb;
+float linearizeDepth(float depth, float near, float far) {
+    float z = depth * 2.0 - 1.0; // Convert depth from [0, 1] to [-1, 1]
+    return (2.0 * near * far) / (far + near - z * (far - near));
 }
 
 void main() {
@@ -224,7 +225,10 @@ void main() {
               vec2 offset = vec2(x, y) / float(samples) * pixelSize;
               vec2 sampleCoords = blockCoords + offset;
 
-              vec4 colorDepth = texture(depthtex0, sampleCoords);
+              float depth = texture(depthtex0, texCoord).r;
+              float d = linearizeDepth(depth, near, far);
+              vec4 colorDepth = vec4(d, d, d,1) / 200;
+
               float avg = 1.0 - ((colorDepth.r + colorDepth.r + colorDepth.r) / 3.0);
               accumulatedColorDepth += vec4(avg, avg, avg, 1.0);
 
@@ -234,7 +238,9 @@ void main() {
 
               for (int i = 0; i < 9; ++i) {
                   vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
-                  float intensity = (texColor.r + texColor.r + texColor.r) / 3.0 * 99999.0;
+                  float tC = linearizeDepth(texColor.r, near, far);
+                  texColor = vec4(tC, tC, tC,1) / 400;
+                  float intensity = texColor.r;
                   gradX += intensity * sobelX[i / 3][i % 3];
                   gradY += intensity * sobelY[i / 3][i % 3];
               }
@@ -254,7 +260,7 @@ void main() {
       float angle = atan(accumulatedGradY, accumulatedGradX);
 
       // If magnitude is very small, no edge is detected
-      if (magnitude < 100.0) {
+      if (magnitude < 0.02) {
           fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black
       } else {
           // Map angle to color
@@ -263,5 +269,4 @@ void main() {
           // Output the color based on the gradient magnitude
           fragColor = vec4(color, 1.0);
       }
-
 }
