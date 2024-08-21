@@ -138,6 +138,33 @@ float linearizeDepth(float depth, float near, float far) {
     return (2.0 * near * far) / (far + near - z * (far - near));
 }
 
+vec3 depthEdgeDetection(sampler2D depthtex0, vec2 texCoord, vec2 resolution, ivec2 offset) {
+
+    float offsetX = 1.0 / resolution.x;
+    float offsetY = 1.0 / resolution.y;
+
+    // Sample depth values from neighboring pixels
+    float depthCenter = linearizeDepth(textureOffset(depthtex0, texCoord, offset).r, near, far);
+    float depthLeft   = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(-offsetX, 0.0), offset).r, near, far);
+    float depthRight  = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(offsetX, 0.0), offset).r, near, far);
+    float depthUp     = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(0.0, offsetY), offset).r, near, far);
+    float depthDown   = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(0.0, -offsetY), offset).r, near, far);
+
+    // Calculate the differences between the center pixel and the neighboring pixels
+    float edgeH = abs(depthLeft - depthRight);
+    float edgeV = abs(depthUp - depthDown);
+
+    // Combine the horizontal and vertical edge detection results
+    float edge = edgeH + edgeV;
+
+    if (edge < 0) {
+        edge = 0;
+    }
+
+    // Output the edge detection result as a grayscale color
+    return vec3(edge);
+}
+
 void main() {
 
     // Define Sobel kernels
@@ -174,7 +201,7 @@ void main() {
     vec2 pixelSize = 1.0 / vec2(resolution) * 8.0;
 
     // Number of samples per axis (supersampling factor)
-    int samples = 1;
+    int samples = 4;
     float sampleFactor = float(samples * samples);
 
     // Determine the starting coordinates for sampling
@@ -184,6 +211,8 @@ void main() {
     float accumulatedGradX = 0.0;
     float accumulatedGradY = 0.0;
 
+    int mode = 0;
+
     // Supersampling loop
     for (int x = 0; x < samples; ++x) {
         for (int y = 0; y < samples; ++y) {
@@ -191,12 +220,15 @@ void main() {
             vec2 offset = vec2(x, y) / float(samples) * pixelSize;
             vec2 sampleCoords = blockCoords + offset;
             vec3 finalColor;
-            if (false) {
+
+            if (mode == 0) {
                 float depth = texture(depthtex0, texCoord).r;
                 float d = linearizeDepth(depth, near, far);
-                vec4 colorDepth1 = vec4(d, d, d,1) / 200;
-                vec3 invertedColor = vec3(1.0) - colorDepth1.rgb;
-                vec3 colorDepth = colorDepth1.rgb * invertedColor.rgb;
+                vec4 colorDepth = vec4(d, d, d,1) / 200;
+                vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+                vec3 finalColor = colorDepth.rgb * invertedColor.rgb;
+            } else if (mode == 1) {
+                finalColor = depthEdgeDetection(depthtex0, texCoord, resolution, ivec2(0,0));
             } else {
                 vec4 edge = differenceOfGaussians(depthtex0, texCoord, ivec2(0,0));
                 float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
@@ -214,13 +246,15 @@ void main() {
             float gradY = 0.0;
 
             for (int i = 0; i < 9; ++i) {
-                vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
                 vec3 finalColor;
-                if (false) {
+                vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
+                if (mode == 0) {
                     float tC = linearizeDepth(texColor.r, near, far);
                     vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
                     vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
                     finalColor = colorDepth.rgb * invertedColor.rgb;
+                } else if (mode == 1) {
+                    finalColor = depthEdgeDetection(depthtex0, sampleCoords, resolution, offsets[i]);
                 } else {
                     vec4 edge = differenceOfGaussians(depthtex0, sampleCoords, offsets[i]);
                     float edgeStrength = dot(edge.rgb, vec3(0.299, 0.587, 0.114));
@@ -229,7 +263,6 @@ void main() {
                         finalColor = vec3(1,1,1);
                     }
                 }
-
                 float intensity = finalColor.r;
                 gradX += intensity * sobelX[i / 3][i % 3];
                 gradY += intensity * sobelY[i / 3][i % 3];
@@ -261,14 +294,21 @@ void main() {
         }
     }
     float averageLuminance = luminanceSum / 64.0;
+
+    float tC = linearizeDepth(texture(depthtex0, texCoord).r, near, far);
+    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
+    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+    vec3 depthGradient = colorDepth.rgb * invertedColor.rgb;
+    vec3 depthGradientInverted = vec3(1.0) - depthGradient.rgb;
+
     int[8] pattern;
     //0.017
     if (magnitude < 0.017) {
         // Get the pixel pattern for the current luminance
         pattern = getPattern(averageLuminance);
     } else {
-        // Get the pixel pattern for the current luminance
         pattern = getPatternAngle(angle);
+
     }
 
 
@@ -279,18 +319,18 @@ void main() {
     // Check if the current pixel should be lit up according to the pattern
     bool litUp = (pattern[pixelCoords.y] & (1 << (7 - pixelCoords.x))) != 0;
 
-    float tC = linearizeDepth(texture(depthtex0, texCoord).r, near, far);
-    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
-    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
-    vec3 depthGradient = colorDepth.rgb * invertedColor.rgb;
-    vec3 depthGradientInverted = vec3(1.0) - depthGradient.rgb;
+
 
 
     if (litUp) {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0); // White for lit pixels
-        //fragColor.rgb = vec3(250, 170, 85) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
+
+        fragColor.rgb = vec3(250, 170, 85) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
+        //fragColor.rgb = vec3(0, 255, 0) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black for unlit pixels
     }
+    //fragColor.rgb = depthEdgeDetection(depthtex0, texCoord, resolution);
+
 }
 
