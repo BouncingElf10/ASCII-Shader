@@ -43,30 +43,30 @@ int[8] getPatternAngle(float angle) {
     float normalizedAngle = mod(angle, 3.14159265 * 2.0);
     if (normalizedAngle < 0.3927 || normalizedAngle > 5.8905) {
         // Around 0° or 180° (horizontal '-')
-        return int[8](0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00); // -
+        return int[8](0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00); // |
     } else if (normalizedAngle >= 0.3927 && normalizedAngle < 1.1781) {
         // Around 45° ('/')
         return int[8](0x80, 0x40, 0x20, 0x10, 0x08, 0x00, 0x00, 0x00); // /
     } else if (normalizedAngle >= 1.1781 && normalizedAngle < 1.9635) {
         // Around 90° (vertical '|')
-        return int[8](0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00); // |
+        return int[8](0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00); // -
     } else if (normalizedAngle >= 1.9635 && normalizedAngle < 2.7489) {
         // Around 135° ('\')
         return int[8](0x08, 0x10, 0x20, 0x40, 0x80, 0x00, 0x00, 0x00); // \
     } else if (normalizedAngle >= 2.7489 && normalizedAngle < 3.5343) {
         // Around 180° again (horizontal '-')
-        return int[8](0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00); // -
+        return int[8](0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00); // |
     } else if (normalizedAngle >= 3.5343 && normalizedAngle < 4.3197) {
         // Around 225° ('/')
         return int[8](0x80, 0x40, 0x20, 0x10, 0x08, 0x00, 0x00, 0x00); // /
     } else if (normalizedAngle >= 4.3197 && normalizedAngle < 5.1051) {
         // Around 270° (vertical '|')
-        return int[8](0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00); // |
+        return int[8](0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00); // -
     } else if (normalizedAngle >= 5.1051 && normalizedAngle < 5.8905) {
         // Around 315° ('\')
         return int[8](0x08, 0x10, 0x20, 0x40, 0x80, 0x00, 0x00, 0x00); // \
     } else {
-        return int[8](0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00);
+        return int[8](0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
     }
 }
 
@@ -211,7 +211,7 @@ void main() {
     float accumulatedGradX = 0.0;
     float accumulatedGradY = 0.0;
 
-    int mode = 0;
+    int mode = 1;
 
     // Supersampling loop
     for (int x = 0; x < samples; ++x) {
@@ -281,6 +281,7 @@ void main() {
     // Compute gradient magnitude and angle based on averaged gradients
     float magnitude = length(vec2(accumulatedGradX, accumulatedGradY));
     float angle = atan(accumulatedGradY, accumulatedGradX);
+    angle = clamp(angle, 0, 3.14159265 * 2.0);
 
     //////////////////
 
@@ -325,10 +326,10 @@ void main() {
     if (litUp) {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0); // White for lit pixels
 
-        fragColor.rgb = vec3(250, 170, 85) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
-        //fragColor.rgb = vec3(0, 255, 0) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(8)); //FALLOFF STREANGH
+        fragColor.rgb = vec3(245, 157, 64) / 255 * (averageLuminance) * pow(depthGradientInverted, vec3(2)); //FALLOFF STREANGH
+        //fragColor.rgb = vec3(0, 255, 0) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(2)); //FALLOFF STREANGH
     } else {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0); // Black for unlit pixels
+        fragColor.rgb = vec3(0, 0, 0) / 255; // Black for unlit pixels
     }
     //fragColor.rgb = depthEdgeDetection(depthtex0, texCoord, resolution);
 
