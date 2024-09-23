@@ -37,7 +37,7 @@ vec3 unsharp_mask(sampler2D tex, vec2 texCoord, float sharpness) {
 
 void main() {
     if (SHARPNESS) {
-        float sharpness = 1.1; // Adjust the sharpness value as needed
+        float sharpness = SHARPNESS_STRENGTH; // Adjust the sharpness value as needed
         vec3 sharpColor = unsharp_mask(colortex0, texCoord, sharpness);
 
         fragColor = vec4(sharpColor, 1.0) * 1.4;

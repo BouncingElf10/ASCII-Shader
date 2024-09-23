@@ -1,4 +1,60 @@
 option.MODE=Line Edge Detection
-value.MODE.0=None
-value.MODE.1=Depth
-value.MODE.2=DoG
+value.MODE.0=§eBase
+value.MODE.1=§6Depth
+value.MODE.2=§4DoG
+
+option.MAGNITUDE=Line Edge Threshold
+
+option.SUPER_SAMPLING=Super Sample Steps
+
+option.LINE=Line Detection
+value.LINE.1=§2True
+value.LINE.0=§4False
+
+screen.POST_PROCESS=Post Processing
+
+option.BLOOM=Bloom
+value.BLOOM.true=§2True
+value.BLOOM.false=§4False
+option.BLOOM_STRENGTH=Bloom Strength
+
+option.SHARPNESS=Sharpen
+value.SHARPNESS.true=§2True
+value.SHARPNESS.false=§4False
+option.SHARPNESS_STRENGTH=Sharpness Strength
+
+option.TONEMAPPING=Tonemapping
+value.TONEMAPPING.true=§2True
+value.TONEMAPPING.false=§4False
+
+screen.COLORS=Color
+
+option.LIGHT_RED=§cRed (Light Colors)
+option.LIGHT_GREEN=§aGreen (Light Colors)
+option.LIGHT_BLUE=§9Blue (Light Colors)
+
+option.DARK_RED=§cRed (Dark Colors)
+option.DARK_GREEN=§aGreen (Dark Colors)
+option.DARK_BLUE=§9Blue (Dark Colors)
+
+option.COLOR_THRESHOLD=Color Mix Threshold/Factor
+option.OG_COLOR=Use Original Color
+value.OG_COLOR.true=§2True
+value.OG_COLOR.false=§4False
+
+option.BACK_RED=§cRed (Background Colors)
+option.BACK_GREEN=§aGreen (Background Colors)
+option.BACK_BLUE=§9Blue (Background Colors)
+
+screen.FALLOFF=Falloff Settings
+
+option.FALLOFF=Falloff
+value.FALLOFF.true=§2True
+value.FALLOFF.false=§4False
+
+option.FALLOFF_AMOUNT=Falloff Strength
+
+option.MIX_LUMINANCE=Mix Luminance for final color
+value.MIX_LUMINANCE.true=§2True
+value.MIX_LUMINANCE.false=§4False
+
