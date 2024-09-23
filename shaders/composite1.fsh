@@ -5,6 +5,8 @@ in vec2 texCoord;
 uniform sampler2D colortex0;  // The main color buffer
 uniform sampler2D depthtex0;
 
+uniform int worldTime;
+
 uniform sampler2D DepthSampler;
 uniform float near;
 uniform float far;
@@ -315,7 +317,7 @@ void main() {
 
     int[8] pattern;
     //0.017
-    if (magnitude < 0.017) {
+    if (magnitude < 0.017 + (MAGNITUDE/1000)) {
         // Get the pixel pattern for the current luminance
         pattern = getPattern(averageLuminance);
 
@@ -337,13 +339,27 @@ void main() {
 
     if (litUp) {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0); // White for lit pixels
+        fragColor.rgb = mix(vec3(DARK_RED,DARK_GREEN,DARK_BLUE), vec3(LIGHT_RED, LIGHT_GREEN, LIGHT_BLUE), averageLuminance * (COLOR_THRESHOLD * 2));
+        if (MIX_LUMINANCE) {
+            fragColor.rgb *= averageLuminance;
+        }
 
-        fragColor.rgb = vec3(245, 157, 64) / 255 * (averageLuminance) * pow(depthGradientInverted, vec3(1)); //FALLOFF STREANGH
+        if (FALLOFF) {
+            fragColor.rgb *= pow(depthGradientInverted, vec3(FALLOFF_AMOUNT));
+        }
+
+        if (OG_COLOR) {
+            fragColor.rgb = texture(colortex0, blockCoords).rgb;
+        }
+
+        //fragColor.rgb = vec3(sin(worldTime),cos(worldTime),tan(worldTime)) * (averageLuminance) * pow(depthGradientInverted, vec3(1)); //FALLOFF STREANGH
         //fragColor.rgb = vec3(0, 255, 0) / 255 * (2 * averageLuminance) * pow(depthGradientInverted, vec3(2)); //FALLOFF STREANGH
         //fragColor.rgb = colorGrad(averageLuminance);
+
     } else {
-        fragColor.rgb = vec3(19,15,18) / 255; // Black for unlit pixels
+        fragColor.rgb = vec3(BACK_RED,BACK_GREEN,BACK_BLUE); // Black for unlit pixels
     }
-    //fragColor.rgb = depthEdgeDetection(depthtex0, texCoord, resolution);
+    //fragColor.rgb = depthEdgeDetection(depthtex0, texCoord, resolution, ivec2(0));
+
 }
 

@@ -51,12 +51,12 @@ void main() {
         if (BLOOM) {
             // Bloom pass: Gaussian blur the high-intensity pixels
             vec4 bloomColor = vec4(0.0);
-            float threshold = 0.8; // Adjust this value to control the bloom threshold
+            float threshold = BLOOM_THRESHOLD; // Adjust this value to control the bloom threshold
             vec3 highIntensity = max(vec3(0.0), originalColor.rgb - vec3(threshold));
             bloomColor = gaussianBlur(colortex0, texCoord, 4.0, ivec2(0, 0)); // Adjust the blur radius as needed
 
             // Combine the original color and the bloom color
-            combinedColor = originalColor.rgb + bloomColor.rgb * 3; // Adjust the bloom intensity as needed
+            combinedColor = originalColor.rgb + bloomColor.rgb * BLOOM_STRENGTH; // Adjust the bloom intensity as needed
         } else {
             combinedColor = originalColor.rgb; // Adjust the bloom intensity as needed
         }
