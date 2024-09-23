@@ -1,2 +1,4 @@
-option.
-screen.
+option.MODE=Line Edge Detection
+value.MODE.0=None
+value.MODE.1=Depth
+value.MODE.2=DoG
