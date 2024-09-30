@@ -341,7 +341,7 @@ void main() {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0); // White for lit pixels
         fragColor.rgb = mix(vec3(DARK_RED,DARK_GREEN,DARK_BLUE), vec3(LIGHT_RED, LIGHT_GREEN, LIGHT_BLUE), averageLuminance * (COLOR_THRESHOLD * 2));
         if (MIX_LUMINANCE) {
-            fragColor.rgb *= averageLuminance;
+            fragColor.rgb *= pow(averageLuminance, MIX_LUMINANCE_AMOUNT);
         }
 
         if (FALLOFF) {

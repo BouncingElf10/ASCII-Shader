@@ -57,4 +57,5 @@ option.FALLOFF_AMOUNT=Falloff Strength
 option.MIX_LUMINANCE=Mix Luminance for final color
 value.MIX_LUMINANCE.true=§2True
 value.MIX_LUMINANCE.false=§4False
+option.MIX_LUMINANCE_AMOUNT=Mix Luminance Factor
 
