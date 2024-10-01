@@ -1,4 +1,4 @@
-#version 120
+#version 150 compatibility
 
 uniform sampler2D texture;
 

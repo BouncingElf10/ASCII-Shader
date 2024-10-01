@@ -1,4 +1,4 @@
-#version 120
+#version 150 compatibility
 
 varying vec4 color;
 varying vec2 coord0;

@@ -9,7 +9,7 @@
 
 */
 //Declare GL version.
-#version 120
+#version 150 compatibility
 
 //0-1 amount of blindness.
 uniform float blindness;

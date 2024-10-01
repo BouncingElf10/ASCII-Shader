@@ -9,7 +9,7 @@
 
 */
 //Declare GL version.
-#version 120
+#version 150 compatibility
 
 //Get Entity id.
 attribute float mc_Entity;

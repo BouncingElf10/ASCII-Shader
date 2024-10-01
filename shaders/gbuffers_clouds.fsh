@@ -9,7 +9,7 @@
 
 */
 //Declare GL version.
-#version 120
+#version 430
 
 //Diffuse (color) texture.
 uniform sampler2D texture;
