@@ -9,7 +9,7 @@
 
 */
 //Declare GL version.
-#version 120
+#version 150 compatibility
 
 //Model * view matrix and it's inverse.
 uniform mat4 gbufferModelView;

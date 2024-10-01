@@ -1,4 +1,4 @@
-#version 330 compatibility
+#version 150 compatibility
 
 out vec2 texCoord;
 void main() {

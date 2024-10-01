@@ -1,4 +1,4 @@
-#version 430 compatibility
+#version 150 compatibility
 
 in vec2 texCoord;
 

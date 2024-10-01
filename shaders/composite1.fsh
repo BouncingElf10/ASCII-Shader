@@ -1,4 +1,4 @@
-#version 430 compatibility
+#version 150 compatibility
 
 in vec2 texCoord;
 
@@ -12,8 +12,6 @@ uniform float near;
 uniform float far;
 
 #include "settings.glsl"
-
-layout(rgba8) uniform image2D tempTexture;
 
 layout(location = 0) out vec4 fragColor;
 
