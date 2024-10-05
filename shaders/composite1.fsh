@@ -84,7 +84,9 @@ vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma, ivec2 offset) {
     for (float x = -size / 2.0; x <= size / 2.0; x++) {
         for (float y = -size / 2.0; y <= size / 2.0; y++) {
             float weight = exp(-(x * x + y * y) / (2.0 * sigma * sigma));
-            color += textureOffset(tex, texCoord + vec2(x, y) * texelSize, offset) * weight;
+
+            vec2 offsetCoords = texCoord + offset * texelSize;  // Manually offset the coordinates
+            color += texture(tex, offsetCoords + vec2(x, y) * texelSize) * weight;
             totalWeight += weight;
         }
     }
@@ -131,6 +133,8 @@ vec3 angleToColor(float angle) {
     } else if (normalizedAngle >= 5.1051 && normalizedAngle < 5.8905) {
         // Around 315° ('\')
         color = vec3(1.0, 1.0, 0.0); // Yellow for '\'
+    } else {
+        color = vec3(1.0, 0.0, 1.0); // MAGENTA for edge cases
     }
 
     return color;
@@ -147,11 +151,13 @@ vec3 depthEdgeDetection(sampler2D depthtex0, vec2 texCoord, vec2 resolution, ive
     float offsetY = 1.0 / resolution.y;
 
     // Sample depth values from neighboring pixels
-    float depthCenter = linearizeDepth(textureOffset(depthtex0, texCoord, offset).r, near, far);
-    float depthLeft   = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(-offsetX, 0.0), offset).r, near, far);
-    float depthRight  = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(offsetX, 0.0), offset).r, near, far);
-    float depthUp     = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(0.0, offsetY), offset).r, near, far);
-    float depthDown   = linearizeDepth(textureOffset(depthtex0, texCoord + vec2(0.0, -offsetY), offset).r, near, far);
+    vec2 texelSize = 1.0 / textureSize(depthtex0, 0);
+    vec2 offsetCoords = texCoord + offset * texelSize;  // Manually offset the coordinates
+    float depthCenter = linearizeDepth(texture(depthtex0, offsetCoords).r, near, far);
+    float depthLeft   = linearizeDepth(texture(depthtex0, offsetCoords + vec2(-offsetX, 0.0)).r, near, far);
+    float depthRight  = linearizeDepth(texture(depthtex0, offsetCoords + vec2(offsetX, 0.0)).r, near, far);
+    float depthUp     = linearizeDepth(texture(depthtex0, offsetCoords + vec2(0.0, offsetY)).r, near, far);
+    float depthDown   = linearizeDepth(texture(depthtex0, offsetCoords + vec2(0.0, -offsetY)).r, near, far);
 
     // Calculate the differences between the center pixel and the neighboring pixels
     float edgeH = abs(depthLeft - depthRight);
@@ -177,8 +183,19 @@ vec3 colorGrad(float gray){
 }
 
 void main() {
+    float depthLeft = 0.0;
+    float depthRight = 0.0;
+    float depthUp = 0.0;
+    float depthDown = 0.0;
+    float edgeH = 0.0;
+    float edgeV = 0.0;
+    float edge = 0.0;
+    vec4 texColor = vec4(1.0);
+    float tC = 0.0;
+    vec4 colorDepth = vec4(1.0);
+    vec3 invertedColor = vec3(1.0);
 
-    // Define Sobel kernels
+// Define Sobel kernels
     mat3 sobelX = mat3(
         -1.0, 0.0, 1.0,
         -2.0, 0.0, 2.0,
@@ -258,11 +275,15 @@ void main() {
 
             for (int i = 0; i < 9; ++i) {
                 vec3 finalColor;
-                vec4 texColor = textureOffset(depthtex0, sampleCoords, offsets[i]);
+
+                vec2 texelSize = 1.0 / textureSize(depthtex0, 0);
+                vec2 offsetCoords = sampleCoords + offsets[i] * texelSize;  // Manually offset the coordinates
+
+                vec4 texColor = texture(depthtex0, offsetCoords);
                 if (mode == 0) {
-                    float tC = linearizeDepth(texColor.r, near, far);
-                    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
-                    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+                    tC = linearizeDepth(texColor.r, near, far);
+                    colorDepth = vec4(tC, tC, tC,1) / 200;
+                    invertedColor = vec3(1.0) - colorDepth.rgb;
                     finalColor = colorDepth.rgb * invertedColor.rgb;
                 } else if (mode == 1) {
                     finalColor = depthEdgeDetection(depthtex0, sampleCoords, resolution, offsets[i]);
@@ -307,9 +328,9 @@ void main() {
     }
     float averageLuminance = luminanceSum / 64.0;
 
-    float tC = linearizeDepth(texture(depthtex0, blockCoords).r, near, far);
-    vec4 colorDepth = vec4(tC, tC, tC,1) / 200;
-    vec3 invertedColor = vec3(1.0) - colorDepth.rgb;
+    tC = linearizeDepth(texture(depthtex0, blockCoords).r, near, far);
+    colorDepth = vec4(tC, tC, tC,1) / 200;
+    invertedColor = vec3(1.0) - colorDepth.rgb;
     vec3 depthGradient = colorDepth.rgb * invertedColor.rgb;
     vec3 depthGradientInverted = vec3(1.0) - depthGradient.rgb;
 
