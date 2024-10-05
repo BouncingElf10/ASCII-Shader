@@ -10,7 +10,7 @@ uniform vec2 resolution;
 layout(location = 0) out vec4 fragColor;
 
 // Gaussian blur function
-vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma, ivec2 offset) {
+vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma) {
     float size = 2.0 * ceil(2.0 * sigma) + 1.0;
     vec2 texelSize = 1.0 / textureSize(tex, 0);
 
@@ -20,7 +20,7 @@ vec4 gaussianBlur(sampler2D tex, vec2 texCoord, float sigma, ivec2 offset) {
     for (float x = -size / 2.0; x <= size / 2.0; x++) {
         for (float y = -size / 2.0; y <= size / 2.0; y++) {
             float weight = exp(-(x * x + y * y) / (2.0 * sigma * sigma));
-            color += textureOffset(tex, texCoord + vec2(x, y) * texelSize, offset) * weight;
+            color += texture(tex, texCoord + vec2(x, y) * texelSize) * weight;
             totalWeight += weight;
         }
     }
@@ -53,7 +53,7 @@ void main() {
             vec4 bloomColor = vec4(0.0);
             float threshold = BLOOM_THRESHOLD; // Adjust this value to control the bloom threshold
             vec3 highIntensity = max(vec3(0.0), originalColor.rgb - vec3(threshold));
-            bloomColor = gaussianBlur(colortex0, texCoord, 4.0, ivec2(0, 0)); // Adjust the blur radius as needed
+            bloomColor = gaussianBlur(colortex0, texCoord, 4.0); // Adjust the blur radius as needed
 
             // Combine the original color and the bloom color
             combinedColor = originalColor.rgb + bloomColor.rgb * BLOOM_STRENGTH; // Adjust the bloom intensity as needed
